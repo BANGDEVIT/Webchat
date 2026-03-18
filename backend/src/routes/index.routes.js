@@ -1,7 +1,9 @@
 import { authRoutes } from "./auth.routes.js";
+import { friendRoutes } from "./friend.routes.js";
 import { userRoutes } from "./user.routes.js";
 
 export const clientRoutes = (app) => {
   app.use("/api/auth", authRoutes);
   app.use("/api/users", userRoutes);
+  app.use("/api/friends", friendRoutes);
 };
