@@ -30,16 +30,15 @@ friendSchema.pre("save", function () {
 
 //  Friend.create([{}], { session }) dùng insertMany — và khi insertMany gọi pre("save") hook, nó không truyền next vào đúng cách → next là undefined → next() throw lỗi.
 
-// friendSchema.pre("save", function (next) {
-//   const a = this.userA.toString();
-//   const b = this.userB.toString();
+friendSchema.pre("save", function () {
+  const a = this.userA.toString();
+  const b = this.userB.toString();
 
-//   if (a > b) {
-//     this.userA = new mongoose.Types.ObjectId(b);
-//     this.userB = new mongoose.Types.ObjectId(a);
-//   }
-//   next();
-// });
+  if (a > b) {
+    this.userA = new mongoose.Types.ObjectId(b);
+    this.userB = new mongoose.Types.ObjectId(a);
+  }
+});
 
 friendSchema.index({ userA: 1, userB: 1 }, { unique: true });
 

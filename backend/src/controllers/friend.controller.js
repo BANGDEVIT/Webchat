@@ -68,57 +68,109 @@ export const sendFriendRequest = async (req, res) => {
   }
 };
 
+// export const acceptFriendRequest = async (req, res) => {
+//   const session = await mongoose.startSession();
+//   try {
+//     session.startTransaction();
+//     const { requestId } = req.params;
+//     const userId = req.user._id;
+
+//     const request = await FriendRequest.findById(requestId).session(session);
+
+//     if (!request) {
+//       await session.abortTransaction();
+//       return res.status(404).json({ message: "Not found request" });
+//     }
+
+//     if (request.to.toString() !== userId.toString()) {
+//       await session.abortTransaction();
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to accept this request" });
+//     }
+
+//     const [userA, userB] = [
+//       request.from.toString(),
+//       request.to.toString(),
+//     ].sort();
+
+//     await Friend.create(
+//       [
+//         {
+//           userA: new mongoose.Types.ObjectId(userA),
+//           userB: new mongoose.Types.ObjectId(userB),
+//         },
+//       ],
+//       { session },
+//     ); // [{}] sẽ an toàn hơn {}
+
+//     // cũng là 1 cách
+//     // const friend = new Friend({ userA, userB });
+//     // await friend.save({ session });
+
+//     await FriendRequest.findByIdAndDelete(requestId).session(session);
+
+//     const from = await User.findById(request.from)
+//       .select("_id displayName avatarUrl")
+//       .lean()
+//       .session(session);
+
+//     await session.commitTransaction();
+
+//     return res.status(200).json({
+//       message: "Accept request successfully",
+//       newFriend: {
+//         _id: from?._id,
+//         displayName: from?.displayName,
+//         avatarUrl: from?.avatarUrl,
+//       },
+//     });
+//   } catch (error) {
+//     await session.abortTransaction();
+//     console.error(
+//       "[friendController][acceptFriendRequest] Internal system error:",
+//       error,
+//     );
+//     return res.status(500).json({
+//       error: "Internal system error",
+//     });
+//   } finally {
+//     session.endSession();
+//   }
+// };
+
 export const acceptFriendRequest = async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
     const { requestId } = req.params;
     const userId = req.user._id;
 
-    const request = await FriendRequest.findById(requestId).session(session);
+    const request = await FriendRequest.findById(requestId);
 
     if (!request) {
-      await session.abortTransaction();
-      return res.status(404).json({ message: "Not found request" });
+      return res
+        .status(404)
+        .json({ message: "Không tìm thấy lời mời kết bạn" });
     }
 
     if (request.to.toString() !== userId.toString()) {
-      await session.abortTransaction();
       return res
         .status(403)
-        .json({ message: "Not authorized to accept this request" });
+        .json({ message: "Bạn không có quyền chấp nhận lời mời này" });
     }
 
-    const [userA, userB] = [
-      request.from.toString(),
-      request.to.toString(),
-    ].sort();
+    const friend = await Friend.create({
+      userA: request.from,
+      userB: request.to,
+    });
 
-    await Friend.create(
-      [
-        {
-          userA: new mongoose.Types.ObjectId(userA),
-          userB: new mongoose.Types.ObjectId(userB),
-        },
-      ],
-      { session },
-    ); // [{}] sẽ an toàn hơn {}
-
-    // cũng là 1 cách
-    // const friend = new Friend({ userA, userB });
-    // await friend.save({ session });
-
-    await FriendRequest.findByIdAndDelete(requestId).session(session);
+    await FriendRequest.findByIdAndDelete(requestId);
 
     const from = await User.findById(request.from)
       .select("_id displayName avatarUrl")
-      .lean()
-      .session(session);
-
-    await session.commitTransaction();
+      .lean();
 
     return res.status(200).json({
-      message: "Accept request successfully",
+      message: "Chấp nhận lời mời kết bạn thành công",
       newFriend: {
         _id: from?._id,
         displayName: from?.displayName,
@@ -126,16 +178,8 @@ export const acceptFriendRequest = async (req, res) => {
       },
     });
   } catch (error) {
-    await session.abortTransaction();
-    console.error(
-      "[friendController][acceptFriendRequest] Internal system error:",
-      error,
-    );
-    return res.status(500).json({
-      error: "Internal system error",
-    });
-  } finally {
-    session.endSession();
+    console.error("Lỗi khi chấp nhận lời mời kết bạn", error);
+    return res.status(500).json({ message: "Lỗi hệ thống" });
   }
 };
 
