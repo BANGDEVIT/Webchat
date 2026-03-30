@@ -1,5 +1,6 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
+import { io } from "../scoket/index.js";
 
 export const createConversation = async (req, res) => {
   try {
@@ -75,20 +76,21 @@ export const createConversation = async (req, res) => {
 
     const formatted = { ...conversation.toObject(), participants }; // participants cũ bị thay bằng participants mới
 
-    // if (type === "group") {
-    //   memberIds.forEach((userId) => {
-    //     io.to(userId).emit("new-group", formatted);
-    //   });
-    // }
+    if (type === "group") {
+      memberIds.forEach((userId) => {
+        io.to(userId).emit("new-group", formatted); // tât cả mọi người đều nhận kể cả người tạo
+        // socket.to(userId).emit() người tạo sẽ không nhận kể cả trong list có người tạo vì socket đang là user đó và nó sẽ bỏ qua
+      });
+    }
 
     // if (type === "direct") {
     //   io.to(userId).emit("new-group", formatted);
     //   io.to(memberIds[0]).emit("new-group", formatted);
     // }
 
-    // return res.status(201).json({ conversation: formatted });
+    return res.status(201).json({ conversation: formatted });
 
-    return res.status(201).json({ conversation: conversation });
+    // return res.status(201).json({ conversation: conversation });
   } catch (error) {
     console.error("Lỗi khi tạo conversation", error);
     return res.status(500).json({ message: "Lỗi hệ thống" });
@@ -181,5 +183,82 @@ export const getMessage = async (req, res) => {
     return res.status(500).json({
       error: "Internal system error",
     });
+  }
+};
+
+export const getUserConversationsForSocketIO = async (userId) => {
+  try {
+    const conversations = await Conversation.find(
+      {
+        "participants.userId": userId,
+      },
+      { _id: 1 },
+    );
+    return conversations.map((c) => c._id.toString());
+  } catch (error) {
+    console.error(
+      "[conversationController][getUserConversationsForSocketIO] internal system error "
+        .error,
+    );
+    return [];
+  }
+};
+
+export const markAsSeen = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user._id.toString();
+
+    const conversation = await Conversation.findById(conversationId).lean();
+
+    if (!conversation) {
+      return res.status(404).json({ message: "Not found Conversation" });
+    }
+
+    const last = conversation.lastMessage;
+
+    if (!last) {
+      return res
+        .status(200)
+        .json({ message: "not exists messages to  mark as seen" });
+    }
+
+    if (last.senderId.toString() === userId) {
+      return res
+        .status(200)
+        .json({ message: "Sender dont't need mark as seen" });
+    }
+
+    const updated = await Conversation.findByIdAndUpdate(
+      conversationId,
+      {
+        $addToSet: { seenBy: userId }, // thêm phần tử vào mảng nhưng KHÔNG bị trùng
+        $set: { [`unreadCounts.${userId}`]: 0 },
+      },
+      {
+        returnDocument: "after",
+      },
+    );
+
+    io.to(conversationId).emit("read-message", {
+      conversation: updated,
+      lastMessage: {
+        _id: updated?.lastMessage._id,
+        content: updated?.lastMessage.content,
+        createdAt: updated?.lastMessage.createdAt,
+        sender: {
+          _id: updated?.lastMessage.senderId,
+        },
+      },
+    });
+
+    return res.status(200).json({
+      message: "Marked as seen",
+      seenBy: updated?.seenBy || [],
+      myUnreadCount: updated?.unreadCounts[userId] || 0,
+    });
+  } catch (error) {
+    console.error("Lỗi khi mark as seen", error);
+    return res.status(500).json({ message: "Lỗi hệ thống" });
   }
 };

@@ -10,5 +10,6 @@ router.use(protectedRoute);
 router.post("/", checkFriendship, controllers.createConversation);
 router.get("/", controllers.getConversation);
 router.get("/:conversationId/messages", controllers.getMessage);
+router.patch("/:conversationId/seen", controllers.markAsSeen);
 
 export const conversationRoutes = router;

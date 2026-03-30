@@ -53,7 +53,6 @@ export const sendFriendRequest = async (req, res) => {
       to,
       message,
     });
-
     return res
       .status(201)
       .json({ message: "Friend request sent successfully", request });
